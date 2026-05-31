@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FallGuard — Fall Detection MVP</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #0b0d11;
+      --surface:      #13161d;
+      --surface2:     #1c202c;
+      --border:       #252a38;
+      --border2:      #323848;
+      --amber:        #f59e0b;
+      --amber-dim:    #b45309;
+      --amber-glow:   rgba(245,158,11,0.12);
+      --red:          #ef4444;
+      --red-bg:       rgba(239,68,68,0.08);
+      --red-border:   rgba(239,68,68,0.25);
+      --green:        #22c55e;
+      --green-bg:     rgba(34,197,94,0.08);
+      --green-border: rgba(34,197,94,0.25);
+      --text:         #e8eaf0;
+      --muted:        #8892a4;
+      --dim:          #4b5568;
+      --mono:         'Space Mono', monospace;
+      --sans:         'Syne', sans-serif;
+      --r:            10px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      padding: 2rem 1rem 5rem;
+      background-image: radial-gradient(ellipse 80% 35% at 50% 0%, rgba(245,158,11,0.05) 0%, transparent 65%);
+    }
+
+    .wrap { max-width: 740px; margin: 0 auto; }
+
+    /* ── Header ── */
+    header {
+      display: flex; align-items: center; gap: 14px;
+      padding-bottom: 1.5rem; margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo-box {
+      width: 46px; height: 46px; border-radius: 10px;
+      background: var(--amber-glow); border: 1px solid var(--amber-dim);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .logo-box svg { width: 22px; height: 22px; }
+    .logo-text h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; }
+    .logo-text p  { font-family: var(--mono); font-size: 0.67rem; color: var(--muted); margin-top: 2px; }
+    .pill {
+      margin-left: auto;
+      font-family: var(--mono); font-size: 0.63rem; letter-spacing: 0.08em;
+      background: var(--amber-glow); color: var(--amber);
+      border: 1px solid var(--amber-dim); border-radius: 20px; padding: 3px 11px;
+    }
+
+    /* ── Section label ── */
+    .lbl {
+      font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--dim);
+      display: flex; align-items: center; gap: 8px; margin-bottom: 0.6rem;
+    }
+    .lbl::before { content:''; width:14px; height:1px; background: var(--border2); }
+
+    /* ── Upload zone ── */
+    .drop-zone {
+      border: 1.5px dashed var(--border2); border-radius: var(--r);
+      background: var(--surface2); padding: 2.5rem 1.5rem;
+      text-align: center; cursor: pointer; position: relative;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 1rem;
+    }
+    .drop-zone:hover, .drop-zone.over {
+      border-color: var(--amber-dim); background: var(--amber-glow);
+    }
+    .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+    .drop-zone svg  { color: var(--dim); }
+    .drop-zone h3   { font-size: 0.95rem; font-weight: 600; margin: 0.65rem 0 0.25rem; }
+    .drop-zone p    { font-family: var(--mono); font-size: 0.67rem; color: var(--muted); }
+
+    /* ── Video preview ── */
+    #previewWrap {
+      display: none; border-radius: var(--r); overflow: hidden;
+      background: #000; aspect-ratio: 16/9; position: relative; margin-bottom: 1rem;
+    }
+    #previewWrap video { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .cam-tag {
+      position: absolute; top: 10px; left: 10px;
+      background: rgba(0,0,0,0.72); border: 1px solid var(--amber-dim);
+      border-radius: 4px; padding: 3px 9px;
+      font-family: var(--mono); font-size: 0.58rem; color: var(--amber);
+      display: flex; align-items: center; gap: 5px;
+    }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); animation: blink 1.2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    #fileName {
+      font-family: var(--mono); font-size: 0.72rem; color: var(--muted);
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 7px; padding: 0.55rem 0.9rem; margin-bottom: 1rem;
+      display: none; word-break: break-all;
+    }
+
+    /* ── Button ── */
+    #analyzeBtn {
+      width: 100%; padding: 0.78rem 1rem;
+      background: var(--amber); border: none; border-radius: 8px;
+      color: #0a0b0e; font-family: var(--mono); font-size: 0.82rem; font-weight: 700;
+      cursor: pointer; transition: background 0.2s; margin-top: 0.5rem;
+    }
+    #analyzeBtn:hover:not(:disabled) { background: #fbbf24; }
+    #analyzeBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Status / error ── */
+    .status {
+      font-family: var(--mono); font-size: 0.72rem; color: var(--muted);
+      text-align: center; padding: 0.55rem; display: none;
+    }
+    .status.show { display: block; }
+    .err {
+      font-family: var(--mono); font-size: 0.72rem; color: var(--red);
+      background: var(--red-bg); border: 1px solid var(--red-border);
+      border-radius: 8px; padding: 0.75rem 1rem; display: none; margin-top: 0.75rem;
+    }
+    .err.show { display: block; }
+
+    /* ── Spinner ── */
+    .spin {
+      display: inline-block; width: 13px; height: 13px; vertical-align: middle;
+      border: 2px solid rgba(245,158,11,0.2); border-top-color: var(--amber);
+      border-radius: 50%; animation: rot 0.65s linear infinite; margin-right: 6px;
+    }
+    @keyframes rot { to { transform: rotate(360deg); } }
+
+    /* ── Results ── */
+    #results { display: none; margin-top: 1.5rem; }
+
+    .verdict {
+      display: flex; align-items: center; gap: 1.2rem;
+      padding: 1.4rem; border-radius: var(--r); margin-bottom: 1rem;
+    }
+    .verdict.fall  { background: var(--red-bg);   border: 1px solid var(--red-border); }
+    .verdict.safe  { background: var(--green-bg);  border: 1px solid var(--green-border); }
+
+    .v-icon {
+      width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .verdict.fall .v-icon { background: rgba(239,68,68,0.14); }
+    .verdict.safe .v-icon { background: rgba(34,197,94,0.14); }
+
+    .v-title { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+    .verdict.fall .v-title { color: var(--red); }
+    .verdict.safe .v-title { color: var(--green); }
+    .v-sub { font-family: var(--mono); font-size: 0.68rem; color: var(--muted); margin-top: 3px; }
+
+    .conf-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+    .conf-lbl  { font-family: var(--mono); font-size: 0.63rem; color: var(--dim); width: 72px; }
+    .conf-bg   { flex: 1; height: 4px; background: var(--border2); border-radius: 99px; overflow: hidden; }
+    .conf-fill { height: 100%; border-radius: 99px; width: 0%; transition: width 0.8s cubic-bezier(.22,1,.36,1); }
+    .verdict.fall .conf-fill { background: var(--red); }
+    .verdict.safe .conf-fill { background: var(--green); }
+    .conf-pct  { font-family: var(--mono); font-size: 0.72rem; font-weight: 700; min-width: 38px; text-align: right; }
+    .verdict.fall .conf-pct { color: var(--red); }
+    .verdict.safe .conf-pct { color: var(--green); }
+
+    /* probability detail row */
+    .meta-row {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-top: 0.75rem;
+    }
+    .meta-chip {
+      font-family: var(--mono); font-size: 0.63rem; color: var(--muted);
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 3px 9px;
+    }
+
+    .box {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 1rem; margin-bottom: 1rem;
+    }
+    .box .lbl2 { font-family: var(--mono); font-size: 0.62rem; color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.45rem; }
+    .box p { font-size: 0.88rem; color: var(--muted); line-height: 1.65; }
+
+    .actions-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .action-item {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.8rem 1rem;
+      display: flex; align-items: flex-start; gap: 12px;
+    }
+    .action-num {
+      font-family: var(--mono); font-size: 0.63rem; font-weight: 700;
+      color: var(--amber); background: var(--amber-glow); border: 1px solid var(--amber-dim);
+      border-radius: 5px; padding: 2px 7px; flex-shrink: 0; margin-top: 1px;
+    }
+    .action-txt { font-size: 0.875rem; color: var(--muted); line-height: 1.55; }
+
+    footer {
+      margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;
+    }
+    footer p { font-family: var(--mono); font-size: 0.6rem; color: var(--dim); }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <h1>FallGuard</h1>
+      <p>MobileNetV2 + LSTM &mdash; Fall Detection System</p>
+    </div>
+    <span class="pill">MVP v1.0</span>
+  </header>
+
+  <!-- Upload -->
+  <div class="lbl">Video Input</div>
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept="video/*" />
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2"/>
+      <polygon points="10,9 16,12 10,15" fill="currentColor" stroke="none"/>
+    </svg>
+    <h3>Drop a video or click to upload</h3>
+    <p>MP4 &bull; MOV &bull; AVI &bull; WEBM &mdash; CCTV or handheld footage</p>
+  </div>
+
+  <!-- Video preview -->
+  <div id="previewWrap">
+    <video id="videoPreview" controls muted></video>
+    <div class="cam-tag"><span class="dot"></span> CAM-01 &middot; FALLGUARD</div>
+  </div>
+  <div id="fileName"></div>
+
+  <!-- Error + Status + Button -->
+  <div class="err" id="errBox"></div>
+  <div class="status" id="statusBox"></div>
+  <button id="analyzeBtn" disabled onclick="runAnalysis()">
+    Upload &amp; Analyze &rarr;
+  </button>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="lbl" style="margin-top:1.5rem;">Detection Result</div>
+
+    <div class="verdict" id="verdictCard">
+      <div class="v-icon" id="vIcon"></div>
+      <div style="flex:1">
+        <div class="v-title" id="vTitle"></div>
+        <div class="v-sub"   id="vSub"></div>
+        <div class="conf-row">
+          <span class="conf-lbl">Confidence</span>
+          <div class="conf-bg"><div class="conf-fill" id="confFill"></div></div>
+          <span class="conf-pct" id="confPct"></span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-chip" id="metaProb"></span>
+          <span class="meta-chip" id="metaThresh"></span>
+          <span class="meta-chip">5-frame sequence &bull; 224&times;224</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="actionsWrap">
+      <div class="lbl">Recommended Actions</div>
+      <ul class="actions-list" id="actionsList"></ul>
+    </div>
+  </div>
+
+  <footer>
+    <p>FallGuard &mdash; Engineering Project MVP</p>
+    <p>MobileNetV2 + LSTM &bull; Threshold 0.35 &bull; Flask + OpenCV</p>
+  </footer>
+
+</div>
+
+<script>
+  let selectedFile = null;
+
+  const dropZone   = document.getElementById("dropZone");
+  const fileInput  = document.getElementById("fileInput");
+  const btn        = document.getElementById("analyzeBtn");
+  const preview    = document.getElementById("videoPreview");
+  const previewWrap = document.getElementById("previewWrap");
+  const fileLabel  = document.getElementById("fileName");
+
+  // Drag-and-drop
+  dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("over"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("over"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault(); dropZone.classList.remove("over");
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith("video/")) setFile(f);
+  });
+
+  fileInput.addEventListener("change", e => {
+    if (e.target.files[0]) setFile(e.target.files[0]);
+  });
+
+  function setFile(f) {
+    selectedFile = f;
+    preview.src  = URL.createObjectURL(f);
+    previewWrap.style.display = "block";
+    fileLabel.textContent = "Selected: " + f.name + " (" + (f.size / 1024 / 1024).toFixed(1) + " MB)";
+    fileLabel.style.display = "block";
+    btn.disabled = false;
+    document.getElementById("results").style.display = "none";
+    hideErr(); hideStatus();
+  }
+
+  async function runAnalysis() {
+    if (!selectedFile) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>Uploading &amp; analysing...';
+    showStatus("Sending video to Flask backend — extracting 5 frames and running CNN+LSTM...");
+    hideErr();
+    document.getElementById("results").style.display = "none";
+
+    const form = new FormData();
+    form.append("video", selectedFile, selectedFile.name);
+
+    try {
+      const resp = await fetch("/predict", { method: "POST", body: form });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        throw new Error(data.error || "Server error " + resp.status);
+      }
+
+      renderResult(data);
+
+    } catch (err) {
+      showErr("Error: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = "Upload &amp; Analyze &rarr;";
+      hideStatus();
+    }
+  }
+
+  function renderResult(d) {
+    const area = document.getElementById("results");
+    area.style.display = "block";
+
+    const card = document.getElementById("verdictCard");
+    card.className = "verdict " + (d.is_fall ? "fall" : "safe");
+
+    document.getElementById("vIcon").innerHTML = d.is_fall
+      ? `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+           <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+         </svg>`
+      : `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+           <polyline points="22 4 12 14.01 9 11.01"/>
+         </svg>`;
+
+    document.getElementById("vTitle").textContent = d.label;
+    document.getElementById("vSub").textContent   = d.is_fall
+      ? "Immediate attention may be required"
+      : "Subject appears to be in a normal posture";
+
+    setTimeout(() => {
+      document.getElementById("confFill").style.width = d.confidence + "%";
+      document.getElementById("confPct").textContent  = d.confidence + "%";
+    }, 80);
+
+    document.getElementById("metaProb").textContent   = "Raw probability: " + d.probability;
+    document.getElementById("metaThresh").textContent = "Threshold: " + d.threshold;
+
+    const list = document.getElementById("actionsList");
+    list.innerHTML = "";
+    (d.actions || []).forEach((a, i) => {
+      const li = document.createElement("li");
+      li.className = "action-item";
+      li.innerHTML = `<span class="action-num">0${i+1}</span><span class="action-txt">${a}</span>`;
+      list.appendChild(li);
+    });
+
+    area.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function showErr(msg)    { const e = document.getElementById("errBox"); e.textContent = msg; e.classList.add("show"); }
+  function hideErr()       { document.getElementById("errBox").classList.remove("show"); }
+  function showStatus(msg) { const s = document.getElementById("statusBox"); s.innerHTML = '<span class="spin"></span>' + msg; s.classList.add("show"); }
+  function hideStatus()    { document.getElementById("statusBox").classList.remove("show"); }
+</script>
+</body>
+</html>
